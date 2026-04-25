@@ -68,3 +68,14 @@ Falak Shaikh
 B.Tech Computer Science (Cyber Security)
 
 ---
+
+## 📸 Screenshots
+
+![Dashboard](seim1.png)## 📸 Screenshots
+
+![Dashboard](seim2.png)
+
+![Dashboard](seim3.png)
+
+![Dashboard](seim4.png)
+

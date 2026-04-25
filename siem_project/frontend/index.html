@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SIEM Assistant — Threat Intelligence Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Exo+2:wght@200;300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+  /* ── Reset & variables ──────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #070b12;
+    --bg2:       #0c1220;
+    --bg3:       #111a2e;
+    --panel:     #0d1526;
+    --border:    #1a2d4a;
+    --border2:   #1f3a60;
+    --accent:    #00d4ff;
+    --accent2:   #0090cc;
+    --green:     #00ff9d;
+    --red:       #ff3860;
+    --yellow:    #ffdd57;
+    --orange:    #ff8c42;
+    --purple:    #b86bff;
+    --text:      #c8d8ea;
+    --text2:     #7a9bb8;
+    --text3:     #3d5a7a;
+    --glow:      0 0 20px rgba(0,212,255,.3);
+    --glow-red:  0 0 20px rgba(255,56,96,.4);
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui:   'Exo 2', sans-serif;
+    --font-head: 'Rajdhani', sans-serif;
+  }
+
+  html { font-size: 15px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ───────────────────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0,0,0,.04) 2px,
+      rgba(0,0,0,.04) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Grid background ────────────────────────────────────────────────────── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  header {
+    position: relative; z-index: 10;
+    background: linear-gradient(135deg, #080f1e 0%, #0a1628 100%);
+    border-bottom: 1px solid var(--border2);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+    box-shadow: 0 2px 30px rgba(0,212,255,.1);
+  }
+  .header-left {
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse-logo 3s ease-in-out infinite;
+  }
+  @keyframes pulse-logo {
+    0%,100% { filter: drop-shadow(0 0 6px var(--accent)); }
+    50%      { filter: drop-shadow(0 0 18px var(--accent)); }
+  }
+  .logo-text {
+    font-family: var(--font-head);
+    font-size: 1.5rem; font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,212,255,.5);
+  }
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: .65rem; color: var(--text3);
+    letter-spacing: 2px;
+    margin-top: -2px;
+  }
+  .header-status {
+    display: flex; align-items: center; gap: 2rem;
+    font-family: var(--font-mono); font-size: .75rem; color: var(--text3);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  main {
+    position: relative; z-index: 1;
+    max-width: 1440px; margin: 0 auto;
+    padding: 1.5rem 1.5rem 4rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  /* ── Panel base ─────────────────────────────────────────────────────────── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .panel::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: .4;
+  }
+  .panel-header {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-head);
+    font-size: .95rem; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .panel-header .ph-icon { font-size: 1rem; }
+  .panel-body { padding: 1.25rem; }
+
+  /* ── Controls ───────────────────────────────────────────────────────────── */
+  .controls-grid {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem;
+  }
+  .form-group { display: flex; flex-direction: column; gap: .4rem; }
+  .form-group label {
+    font-family: var(--font-mono); font-size: .7rem;
+    color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  select, input {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font-mono); font-size: .85rem;
+    padding: .55rem .85rem;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  select:hover, select:focus { border-color: var(--accent); box-shadow: var(--glow); }
+  select option { background: var(--bg3); }
+
+  .btn {
+    font-family: var(--font-head);
+    font-size: 1rem; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: .6rem 1.6rem;
+    border: none; border-radius: 3px;
+    cursor: pointer;
+    position: relative; overflow: hidden;
+    transition: all .25s;
+  }
+  .btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,.08);
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .btn:hover::after { opacity: 1; }
+  .btn-primary {
+    background: linear-gradient(135deg, #006fa8, var(--accent));
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(0,212,255,.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0,212,255,.45); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger {
+    background: linear-gradient(135deg, #a01030, var(--red));
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(255,56,96,.25);
+  }
+
+  /* ── Progress bar ───────────────────────────────────────────────────────── */
+  #progress-section { transition: opacity .3s; }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-family: var(--font-mono); font-size: .75rem;
+    color: var(--text2); margin-bottom: .5rem;
+  }
+  .progress-track {
+    height: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #005f8f, var(--accent), var(--green));
+    background-size: 200% 100%;
+    animation: flow 2s linear infinite;
+    border-radius: 6px;
+    transition: width .4s cubic-bezier(.4,0,.2,1);
+    position: relative;
+  }
+  .progress-bar::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.2) 50%, transparent 100%);
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes flow    { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+  @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+  .progress-bar.done {
+    background: var(--green);
+    animation: none;
+  }
+  .progress-status {
+    font-family: var(--font-mono); font-size: .73rem;
+    color: var(--accent); margin-top: .45rem;
+    min-height: 1em;
+  }
+
+  /* ── Stat cards ─────────────────────────────────────────────────────────── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .75rem;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .9rem 1rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .stat-card:hover { border-color: var(--border2); }
+  .stat-card .s-label {
+    font-family: var(--font-mono); font-size: .68rem;
+    color: var(--text3); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .stat-card .s-value {
+    font-family: var(--font-head);
+    font-size: 2rem; font-weight: 700;
+    line-height: 1.1;
+    margin-top: .2rem;
+  }
+  .stat-card.total  .s-value { color: var(--accent); }
+  .stat-card.failed .s-value { color: var(--red); }
+  .stat-card.success .s-value { color: var(--green); }
+  .stat-card.priv   .s-value { color: var(--orange); }
+  .stat-card.crit   .s-value { color: var(--red); text-shadow: var(--glow-red); }
+  .stat-card.high   .s-value { color: var(--orange); }
+
+  /* ── Table ──────────────────────────────────────────────────────────────── */
+  .table-toolbar {
+    display: flex; align-items: center; gap: .75rem;
+    flex-wrap: wrap; margin-bottom: .85rem;
+  }
+  .filter-select {
+    font-size: .78rem;
+    padding: .35rem .65rem;
+  }
+  .search-box {
+    flex: 1; min-width: 160px;
+    padding: .35rem .65rem;
+    font-size: .78rem;
+  }
+  .table-wrapper {
+    overflow-x: auto;
+    max-height: 400px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-family: var(--font-mono); font-size: .78rem;
+  }
+  thead { position: sticky; top: 0; z-index: 2; }
+  thead th {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border2);
+    padding: .6rem .8rem;
+    text-align: left;
+    color: var(--text3);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-size: .65rem;
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid rgba(26,45,74,.6);
+    transition: background .15s;
+  }
+  tbody tr:hover { background: rgba(0,212,255,.04); }
+  tbody td {
+    padding: .5rem .8rem;
+    color: var(--text2);
+    max-width: 360px;
+  }
+  .td-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Severity / event badges */
+  .badge {
+    display: inline-block;
+    padding: .15rem .5rem;
+    border-radius: 2px;
+    font-size: .68rem; font-weight: 600;
+    letter-spacing: .5px; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .badge-critical { background: rgba(255,56,96,.15); color: var(--red); border: 1px solid rgba(255,56,96,.3); }
+  .badge-high     { background: rgba(255,140,66,.15); color: var(--orange); border: 1px solid rgba(255,140,66,.3); }
+  .badge-medium   { background: rgba(255,221,87,.12); color: var(--yellow); border: 1px solid rgba(255,221,87,.25); }
+  .badge-low      { background: rgba(0,255,157,.1); color: var(--green); border: 1px solid rgba(0,255,157,.2); }
+  .badge-failed_login       { background: rgba(255,56,96,.1); color: var(--red); border: 1px solid rgba(255,56,96,.2); }
+  .badge-successful_login   { background: rgba(0,255,157,.08); color: var(--green); border: 1px solid rgba(0,255,157,.2); }
+  .badge-privilege_escalation { background: rgba(255,140,66,.1); color: var(--orange); border: 1px solid rgba(255,140,66,.25); }
+  .badge-access_denied      { background: rgba(184,107,255,.1); color: var(--purple); border: 1px solid rgba(184,107,255,.25); }
+  .badge-vpn_activity       { background: rgba(0,212,255,.1); color: var(--accent); border: 1px solid rgba(0,212,255,.2); }
+  .badge-malware_detected   { background: rgba(255,56,96,.2); color: #ff6b80; border: 1px solid rgba(255,56,96,.4); }
+
+  .empty-state {
+    text-align: center; padding: 2.5rem 1rem;
+    color: var(--text3); font-family: var(--font-mono); font-size: .8rem;
+  }
+
+  /* ── Two-column layout ──────────────────────────────────────────────────── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Chatbot ────────────────────────────────────────────────────────────── */
+  .chat-window {
+    min-height: 300px; max-height: 420px;
+    overflow-y: auto;
+    padding: .75rem;
+    display: flex; flex-direction: column; gap: .75rem;
+  }
+  .chat-msg {
+    display: flex; gap: .65rem;
+    animation: fade-in .25s ease;
+  }
+  @keyframes fade-in { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+  .chat-msg.user { flex-direction: row-reverse; }
+  .chat-avatar {
+    width: 30px; height: 30px; min-width: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .avatar-bot  { background: linear-gradient(135deg, var(--accent2), var(--accent)); color: #000; }
+  .avatar-user { background: linear-gradient(135deg, #2d4a6e, #3a5f8a); color: var(--accent); }
+  .chat-bubble {
+    max-width: 88%;
+    padding: .55rem .85rem;
+    border-radius: 4px;
+    font-size: .82rem; line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .bubble-bot {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-bottom-left-radius: 1px;
+  }
+  .bubble-user {
+    background: linear-gradient(135deg, #0d2440, #112d50);
+    border: 1px solid #1a4070;
+    color: var(--accent);
+    border-bottom-right-radius: 1px;
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+  .chat-input-row {
+    display: flex; gap: .65rem;
+    padding: .85rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  #chat-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font-mono); font-size: .85rem;
+    padding: .55rem .85rem;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  #chat-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
+  .typing-indicator {
+    display: flex; align-items: center; gap: 4px;
+    padding: .4rem .6rem;
+  }
+  .typing-indicator span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: bounce .8s ease-in-out infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: .15s; }
+  .typing-indicator span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(.6)} 40%{transform:scale(1)} }
+
+  /* ── Report ─────────────────────────────────────────────────────────────── */
+  .report-meta {
+    display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
+    font-family: var(--font-mono); font-size: .72rem;
+    color: var(--text3); margin-bottom: 1rem;
+  }
+  .report-section { margin-bottom: 1.25rem; }
+  .report-section h3 {
+    font-family: var(--font-head); font-size: .9rem;
+    font-weight: 600; letter-spacing: 2px;
+    color: var(--accent2); text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .35rem; margin-bottom: .6rem;
+  }
+  .report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: .5rem;
+  }
+  .report-kv {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .5rem .75rem;
+  }
+  .report-kv .k {
+    font-family: var(--font-mono); font-size: .65rem;
+    color: var(--text3); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .report-kv .v {
+    font-family: var(--font-head); font-size: 1.4rem;
+    font-weight: 700; color: var(--text);
+  }
+  .rec-item {
+    padding: .5rem .75rem;
+    font-size: .82rem; line-height: 1.5;
+    border-left: 3px solid var(--border2);
+    margin-bottom: .4rem;
+    background: var(--bg2);
+  }
+  .ip-list { font-family: var(--font-mono); font-size: .78rem; }
+  .ip-list li {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .3rem 0;
+    border-bottom: 1px solid rgba(26,45,74,.5);
+  }
+  .ip-list li:last-child { border-bottom: none; }
+  .ip-bar {
+    flex: 1; height: 6px;
+    background: var(--border);
+    border-radius: 3px; overflow: hidden;
+  }
+  .ip-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 3px;
+  }
+
+  /* ── Timeline mini chart ────────────────────────────────────────────────── */
+  .timeline-chart {
+    display: flex; align-items: flex-end; gap: 4px;
+    height: 60px; padding: .25rem 0;
+  }
+  .timeline-bar-wrap {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  .timeline-bar {
+    width: 100%; min-height: 2px;
+    background: linear-gradient(0deg, var(--accent2), var(--accent));
+    border-radius: 2px 2px 0 0;
+    transition: height .4s ease;
+  }
+  .timeline-bar-wrap .t-label {
+    font-family: var(--font-mono); font-size: .55rem;
+    color: var(--text3); text-align: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    height: 30px;
+    overflow: hidden;
+  }
+
+  /* ── Scrollbar ──────────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+  /* ── Toast ──────────────────────────────────────────────────────────────── */
+  #toast-container {
+    position: fixed; top: 80px; right: 1.5rem;
+    z-index: 9998; display: flex; flex-direction: column; gap: .5rem;
+  }
+  .toast {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent);
+    padding: .65rem 1rem;
+    border-radius: 3px;
+    font-family: var(--font-mono); font-size: .78rem;
+    color: var(--text);
+    animation: slide-in .3s ease, fade-out .3s ease 2.7s forwards;
+    max-width: 320px;
+  }
+  .toast.error { border-left-color: var(--red); }
+  .toast.success { border-left-color: var(--green); }
+  @keyframes slide-in   { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes fade-out   { from{opacity:1} to{opacity:0;pointer-events:none} }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    header { padding: 0 1rem; }
+    .logo-text { font-size: 1.1rem; }
+    .panel-body { padding: .85rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M9 1L17 5V13L9 17L1 13V5L9 1Z" stroke="rgba(0,0,0,.8)" stroke-width="1.5" fill="rgba(0,0,0,.3)"/>
+        <circle cx="9" cy="9" r="3" fill="rgba(0,0,0,.8)"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">SIEM·AI</div>
+      <div class="logo-sub">THREAT INTELLIGENCE CONSOLE</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <div class="status-dot" id="sys-status-dot"></div>
+      <span id="sys-status-text">ONLINE</span>
+    </div>
+    <span id="header-hostname" style="color:var(--text2)">–</span>
+    <span id="header-clock" style="color:var(--text2)"></span>
+  </div>
+</header>
+
+<!-- ── Toast container ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<main>
+
+  <!-- ── Controls ──────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header"><span class="ph-icon">⚙</span> Collection Controls</div>
+    <div class="panel-body">
+      <div class="controls-grid">
+        <div class="form-group">
+          <label>Time Range</label>
+          <select id="range-select">
+            <option value="1">Last 24 Hours</option>
+            <option value="7" selected>Last 7 Days</option>
+            <option value="10">Last 10 Days</option>
+            <option value="30">Last 30 Days</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="collect-btn" onclick="startCollection()">
+          ▶ Collect Logs
+        </button>
+        <button class="btn btn-secondary" onclick="refreshData()">
+          ↻ Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Progress ──────────────────────────────────────────────────────── -->
+  <div class="panel" id="progress-section" style="display:none">
+    <div class="panel-header"><span class="ph-icon">◈</span> Collection Progress</div>
+    <div class="panel-body">
+      <div class="progress-label">
+        <span id="progress-text">Initialising…</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+      </div>
+      <div class="progress-status" id="progress-status">Starting log collection…</div>
+    </div>
+  </div>
+
+  <!-- ── Stats ─────────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header"><span class="ph-icon">◇</span> Security Overview</div>
+    <div class="panel-body">
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card total"><div class="s-label">Total Events</div><div class="s-value" id="s-total">–</div></div>
+        <div class="stat-card failed"><div class="s-label">Failed Logins</div><div class="s-value" id="s-failed">–</div></div>
+        <div class="stat-card success"><div class="s-label">Successful Logins</div><div class="s-value" id="s-success">–</div></div>
+        <div class="stat-card priv"><div class="s-label">Privilege Escalation</div><div class="s-value" id="s-priv">–</div></div>
+        <div class="stat-card crit"><div class="s-label">Critical</div><div class="s-value" id="s-crit">–</div></div>
+        <div class="stat-card high"><div class="s-label">High Severity</div><div class="s-value" id="s-high">–</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Events Table ───────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header"><span class="ph-icon">▤</span> Security Events Log</div>
+    <div class="panel-body">
+      <div class="table-toolbar">
+        <select class="filter-select" id="type-filter" onchange="loadEvents()">
+          <option value="">All Types</option>
+          <option value="failed_login">Failed Login</option>
+          <option value="successful_login">Successful Login</option>
+          <option value="privilege_escalation">Privilege Escalation</option>
+          <option value="access_denied">Access Denied</option>
+          <option value="vpn_activity">VPN Activity</option>
+          <option value="malware_detected">Malware Detected</option>
+        </select>
+        <input class="search-box" id="table-search" placeholder="Search message…"
+               oninput="filterTable()" type="text"/>
+        <span id="events-count" style="font-family:var(--font-mono);font-size:.72rem;color:var(--text3);white-space:nowrap"></span>
+      </div>
+      <div class="table-wrapper">
+        <table id="events-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Type</th>
+              <th>Severity</th>
+              <th>Username</th>
+              <th>IP Address</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Chatbot + Top IPs ──────────────────────────────────────────────── -->
+  <div class="two-col">
+
+    <!-- Chatbot -->
+    <div class="panel" style="display:flex;flex-direction:column">
+      <div class="panel-header"><span class="ph-icon">◉</span> SIEM Assistant</div>
+      <div class="chat-window" id="chat-window">
+        <div class="chat-msg">
+          <div class="chat-avatar avatar-bot">AI</div>
+          <div class="chat-bubble bubble-bot">
+Hello. I am your SIEM Assistant.
+
+I can answer questions based on collected logs:
+  • Show failed logins
+  • Who logged in last?
+  • Top attack IPs
+  • Suspicious activity
+  • Privilege escalation events
+  • Security summary / stats
+  • Generate report
+
+Collect logs first, then ask me anything.
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Ask about your logs…"
+               onkeydown="if(event.key==='Enter') sendChat()"/>
+        <button class="btn btn-primary" onclick="sendChat()" style="padding:.55rem 1rem">➤</button>
+      </div>
+    </div>
+
+    <!-- Top IPs panel -->
+    <div class="panel">
+      <div class="panel-header"><span class="ph-icon">◈</span> Top Source IPs</div>
+      <div class="panel-body">
+        <ul class="ip-list" id="top-ips-list">
+          <li style="color:var(--text3);font-family:var(--font-mono);font-size:.78rem">
+            No data — collect logs first
+          </li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Report ─────────────────────────────────────────────────────────── -->
+  <div class="panel" id="report-panel">
+    <div class="panel-header"><span class="ph-icon">◑</span> Threat Report</div>
+    <div class="panel-body">
+      <div style="display:flex;gap:.75rem;margin-bottom:1rem">
+        <button class="btn btn-primary" onclick="generateReport()">⬡ Generate Report</button>
+      </div>
+      <div id="report-output">
+        <div class="empty-state">Click "Generate Report" to create a full security assessment.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+
+// ── State ──────────────────────────────────────────────────────────────────
+let pollTimer  = null;
+let allEvents  = [];
+let currentDays = () => parseInt(document.getElementById('range-select').value);
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('header-clock').textContent =
+    new Date().toISOString().replace('T',' ').slice(0,19) + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type='') {
+  const d = document.createElement('div');
+  d.className = 'toast ' + type;
+  d.textContent = msg;
+  document.getElementById('toast-container').appendChild(d);
+  setTimeout(() => d.remove(), 3100);
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ── Start collection ───────────────────────────────────────────────────────
+async function startCollection() {
+  const btn  = document.getElementById('collect-btn');
+  const days = currentDays();
+  btn.disabled = true;
+  btn.textContent = '⋯ Collecting';
+
+  document.getElementById('progress-section').style.display = '';
+
+  try {
+    await api('/api/collect', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({days}),
+    });
+    pollProgress();
+  } catch(e) {
+    toast('Collection error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '▶ Collect Logs';
+  }
+}
+
+// ── Poll progress ──────────────────────────────────────────────────────────
+function pollProgress() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const s = await api('/api/progress');
+      const pct = s.progress || 0;
+      const bar = document.getElementById('progress-bar');
+      bar.style.width = pct + '%';
+      if (pct >= 100) bar.classList.add('done');
+      else            bar.classList.remove('done');
+      document.getElementById('progress-pct').textContent  = pct + '%';
+      document.getElementById('progress-text').textContent = s.status || '…';
+      document.getElementById('progress-status').textContent = s.status || '';
+
+      if (!s.running) {
+        clearInterval(pollTimer);
+        const btn = document.getElementById('collect-btn');
+        btn.disabled = false; btn.textContent = '▶ Collect Logs';
+        if (s.total_collected !== undefined) {
+          toast(`Collected ${s.total_collected} events`, s.total_collected > 0 ? 'success' : '');
+        }
+        if (s.errors && s.errors.length) toast('Warning: ' + s.errors[0], 'error');
+        refreshData();
+      }
+    } catch(e) { /* ignore transient */ }
+  }, 700);
+}
+
+// ── Load stats ─────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const d = await api('/api/stats?days=' + currentDays());
+    document.getElementById('s-total').textContent  = d.total;
+    const byType = Object.fromEntries(d.by_type.map(r => [r.event_type, r.cnt]));
+    const bySev  = Object.fromEntries(d.by_severity.map(r => [r.severity, r.cnt]));
+    document.getElementById('s-failed').textContent  = byType.failed_login || 0;
+    document.getElementById('s-success').textContent = byType.successful_login || 0;
+    document.getElementById('s-priv').textContent    = byType.privilege_escalation || 0;
+    document.getElementById('s-crit').textContent    = bySev.critical || 0;
+    document.getElementById('s-high').textContent    = bySev.high || 0;
+
+    // Top IPs
+    const ipList = document.getElementById('top-ips-list');
+    if (!d.top_ips.length) {
+      ipList.innerHTML = '<li style="color:var(--text3);font-family:var(--font-mono);font-size:.78rem">No IP data available</li>';
+    } else {
+      const max = d.top_ips[0].cnt;
+      ipList.innerHTML = d.top_ips.map(r =>
+        `<li>
+          <span style="color:var(--accent);min-width:120px">${r.ip_address}</span>
+          <div class="ip-bar"><div class="ip-bar-fill" style="width:${Math.round(r.cnt/max*100)}%"></div></div>
+          <span style="color:var(--text3);font-size:.68rem;min-width:30px;text-align:right">${r.cnt}</span>
+        </li>`
+      ).join('');
+    }
+
+    // Hostname
+    if (d.recent && d.recent[0]) {
+      document.getElementById('header-hostname').textContent = d.recent[0].hostname || SIEM_HOST;
+    }
+  } catch(e) { /* no data yet */ }
+}
+
+// ── Load events ────────────────────────────────────────────────────────────
+async function loadEvents() {
+  const days = currentDays();
+  const type = document.getElementById('type-filter').value;
+  let url = `/api/events?days=${days}&limit=300`;
+  if (type) url += `&event_type=${type}`;
+  try {
+    const d = await api(url);
+    allEvents = d.events || [];
+    document.getElementById('events-count').textContent = `${d.total} total`;
+    renderTable(allEvents);
+  } catch(e) { /* quiet */ }
+}
+
+function renderTable(rows) {
+  const search = document.getElementById('table-search').value.toLowerCase();
+  const filtered = search
+    ? rows.filter(r => (r.message||'').toLowerCase().includes(search)
+                    || (r.username||'').toLowerCase().includes(search)
+                    || (r.ip_address||'').toLowerCase().includes(search))
+    : rows;
+
+  const tbody = document.getElementById('events-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No events found. Collect logs first or adjust filters.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(r => {
+    const ts = (r.timestamp||'').replace('T',' ').slice(0,19);
+    const etBadge = `<span class="badge badge-${r.event_type}">${(r.event_type||'').replace(/_/g,' ')}</span>`;
+    const svBadge = `<span class="badge badge-${r.severity}">${r.severity||''}</span>`;
+    const msg = escHtml((r.message||'').slice(0,180));
+    return `<tr>
+      <td style="white-space:nowrap;color:var(--text3)">${ts}</td>
+      <td>${etBadge}</td>
+      <td>${svBadge}</td>
+      <td style="color:var(--accent)">${escHtml(r.username||'—')}</td>
+      <td style="color:var(--text2)">${escHtml(r.ip_address||'—')}</td>
+      <td class="td-trunc" title="${escAttr(r.message||'')}" style="max-width:320px">${msg}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable() { renderTable(allEvents); }
+
+// ── Chat ───────────────────────────────────────────────────────────────────
+async function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+
+  appendMsg(msg, 'user');
+
+  const typingId = appendTyping();
+  try {
+    const d = await api('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg, days: currentDays()}),
+    });
+    removeTyping(typingId);
+    appendMsg(d.response || '…', 'bot');
+  } catch(e) {
+    removeTyping(typingId);
+    appendMsg('Error: ' + e.message, 'bot');
+  }
+}
+
+function appendMsg(text, who) {
+  const win = document.getElementById('chat-window');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${who}`;
+  const av = who === 'bot'
+    ? `<div class="chat-avatar avatar-bot">AI</div>`
+    : `<div class="chat-avatar avatar-user">ME</div>`;
+  div.innerHTML = `${av}<div class="chat-bubble bubble-${who}">${escHtml(text)}</div>`;
+  win.appendChild(div);
+  win.scrollTop = win.scrollHeight;
+}
+
+let typingCount = 0;
+function appendTyping() {
+  const id = ++typingCount;
+  const win = document.getElementById('chat-window');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.id = `typing-${id}`;
+  div.innerHTML = `<div class="chat-avatar avatar-bot">AI</div>
+    <div class="chat-bubble bubble-bot">
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
+    </div>`;
+  win.appendChild(div);
+  win.scrollTop = win.scrollHeight;
+  return id;
+}
+function removeTyping(id) {
+  const el = document.getElementById(`typing-${id}`);
+  if (el) el.remove();
+}
+
+// ── Report ─────────────────────────────────────────────────────────────────
+async function generateReport() {
+  const out = document.getElementById('report-output');
+  out.innerHTML = '<div class="empty-state">Generating report…</div>';
+  try {
+    const r = await api('/api/report?days=' + currentDays());
+    renderReport(r);
+  } catch(e) {
+    out.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderReport(r) {
+  const byType = r.by_type || {};
+  const bySev  = r.by_severity || {};
+
+  // Timeline
+  let tlHtml = '';
+  if (r.timeline && r.timeline.length) {
+    const max = Math.max(...r.timeline.map(t => t.cnt), 1);
+    tlHtml = `
+      <div class="report-section">
+        <h3>Event Timeline</h3>
+        <div class="timeline-chart">
+          ${r.timeline.map(t => {
+            const h = Math.round((t.cnt / max) * 50) + 2;
+            return `<div class="timeline-bar-wrap">
+              <div class="timeline-bar" style="height:${h}px" title="${t.day}: ${t.cnt}"></div>
+              <div class="t-label">${(t.day||'').slice(5)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  const html = `
+    <div class="report-meta">
+      <span>Generated: ${(r.generated_at||'').replace('T',' ').slice(0,19)} UTC</span>
+      <span>Host: ${escHtml(r.hostname||'unknown')}</span>
+      <span>Period: ${r.period_days} days</span>
+      <span>Device: ${escHtml(r.device_id||'unknown')}</span>
+    </div>
+
+    <div class="report-section">
+      <h3>Summary</h3>
+      <div class="report-grid">
+        <div class="report-kv"><div class="k">Total Events</div><div class="v" style="color:var(--accent)">${r.total_events}</div></div>
+        <div class="report-kv"><div class="k">Failed Logins</div><div class="v" style="color:var(--red)">${byType.failed_login||0}</div></div>
+        <div class="report-kv"><div class="k">Successful Logins</div><div class="v" style="color:var(--green)">${byType.successful_login||0}</div></div>
+        <div class="report-kv"><div class="k">Priv. Escalation</div><div class="v" style="color:var(--orange)">${byType.privilege_escalation||0}</div></div>
+        <div class="report-kv"><div class="k">Access Denied</div><div class="v" style="color:var(--purple)">${byType.access_denied||0}</div></div>
+        <div class="report-kv"><div class="k">VPN Activity</div><div class="v" style="color:var(--accent)">${byType.vpn_activity||0}</div></div>
+        <div class="report-kv"><div class="k">Malware</div><div class="v" style="color:var(--red)">${byType.malware_detected||0}</div></div>
+        <div class="report-kv"><div class="k">Critical</div><div class="v" style="color:var(--red)">${bySev.critical||0}</div></div>
+        <div class="report-kv"><div class="k">High</div><div class="v" style="color:var(--orange)">${bySev.high||0}</div></div>
+        <div class="report-kv"><div class="k">Medium</div><div class="v" style="color:var(--yellow)">${bySev.medium||0}</div></div>
+      </div>
+    </div>
+
+    ${tlHtml}
+
+    ${r.top_ips.length ? `
+    <div class="report-section">
+      <h3>Top Source IPs</h3>
+      <ul class="ip-list">
+        ${r.top_ips.map((ip,i) => {
+          const max = r.top_ips[0].cnt;
+          return `<li>
+            <span style="color:var(--text3);min-width:20px">#${i+1}</span>
+            <span style="color:var(--accent);min-width:120px">${escHtml(ip.ip_address)}</span>
+            <div class="ip-bar"><div class="ip-bar-fill" style="width:${Math.round(ip.cnt/max*100)}%"></div></div>
+            <span style="color:var(--text3);min-width:40px;text-align:right">${ip.cnt} events</span>
+          </li>`;
+        }).join('')}
+      </ul>
+    </div>` : ''}
+
+    ${r.top_users.length ? `
+    <div class="report-section">
+      <h3>Most Active Users</h3>
+      <ul class="ip-list">
+        ${r.top_users.map((u,i) => {
+          const max = r.top_users[0].cnt;
+          return `<li>
+            <span style="color:var(--text3);min-width:20px">#${i+1}</span>
+            <span style="color:var(--accent);min-width:120px">${escHtml(u.username)}</span>
+            <div class="ip-bar"><div class="ip-bar-fill" style="width:${Math.round(u.cnt/max*100)}%;background:linear-gradient(90deg,#4a1a8f,var(--purple))"></div></div>
+            <span style="color:var(--text3);min-width:40px;text-align:right">${u.cnt} events</span>
+          </li>`;
+        }).join('')}
+      </ul>
+    </div>` : ''}
+
+    <div class="report-section">
+      <h3>Recommendations</h3>
+      ${r.recommendations.map(rec => `<div class="rec-item">${escHtml(rec)}</div>`).join('')}
+    </div>
+  `;
+
+  document.getElementById('report-output').innerHTML = html;
+  toast('Report generated', 'success');
+}
+
+// ── Refresh all ────────────────────────────────────────────────────────────
+async function refreshData() {
+  await Promise.all([loadStats(), loadEvents()]);
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return escHtml(s); }
+
+// ── Check if already running ───────────────────────────────────────────────
+async function checkRunning() {
+  try {
+    const s = await api('/api/progress');
+    if (s.running) {
+      document.getElementById('progress-section').style.display = '';
+      document.getElementById('collect-btn').disabled = true;
+      document.getElementById('collect-btn').textContent = '⋯ Collecting';
+      pollProgress();
+    }
+  } catch(e) {}
+}
+
+// ── Range change ───────────────────────────────────────────────────────────
+document.getElementById('range-select').addEventListener('change', refreshData);
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+(async () => {
+  await checkRunning();
+  await refreshData();
+})();
+
+const SIEM_HOST = location.hostname;
+</script>
+</body>
+</html>
